@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ..:/workspace:cached
+      - vscode-extensions:/home/vscode/.vscode-server/extensions
+      - vscode-extensions-insiders:/home/vscode/.vscode-server-insiders/extensions
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    depends_on:
+      - kafka
+      - chroma
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - rag-network
+
+volumes:
+  vscode-extensions:
+  vscode-extensions-insiders:
+
+networks:
+  rag-network:
+    driver: bridge

@@ -1,0 +1,17 @@
+# 测试工具
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# 代码质量
+black==23.12.1
+pylint==3.0.3
+flake8==7.0.0
+mypy==1.7.1
+
+# 调试工具
+ipython==8.18.1
+ipdb==0.13.13
+
+# 文档生成
+sphinx==7.2.6
