@@ -23,11 +23,6 @@
 
 
 
-### 启动Kafka服务，并创建主题doc_ingest_topic
-### 启动消费者服务运行kafka_consumer.py（示例代码中的消费者）
-### 使用kafka_producer.py发送文档消息
-### 运行FastAPI服务，调用 /rag_query/接口进行问答查询
-
 | 主题        | 技术理解                        | 实践意义                     |
 | --------- | --------------------------- | ------------------------ |
 | Kafka消息队列 | 解耦上传与索引处理，避免接口阻塞，提高系统吞吐     | 更适合大规模文档批量处理、异步任务调度      |
@@ -45,6 +40,10 @@
 | rag_chain.py | RAG链构建           | 载入向量数据库，构建问答链，使用LLM生成    |
 | main.py      | 提供FastAPI查询接口    | 接收用户问题，调用RAG链返回答案和来源     |
 
+    启动Kafka服务，并创建主题doc_ingest_topic
+    启动消费者服务运行kafka_consumer.py（示例代码中的消费者）
+    使用kafka_producer.py发送文档消息
+    运行FastAPI服务，调用 /rag_query/接口进行问答查询
 
     # 安装依赖
     pip install -r requirements.txt
