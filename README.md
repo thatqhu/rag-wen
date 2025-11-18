@@ -44,3 +44,23 @@
 | ingest.py    | Kafka消费者 + 文档向量化 | 消费文档消息，切分文本，生成向量写入Chroma |
 | rag_chain.py | RAG链构建           | 载入向量数据库，构建问答链，使用LLM生成    |
 | main.py      | 提供FastAPI查询接口    | 接收用户问题，调用RAG链返回答案和来源     |
+
+
+    # 安装依赖
+    pip install -r requirements.txt
+
+    # 启动Kafka服务 (需本机部署或Docker)
+
+    # 启动Kafka消费者，索引传入文档
+    python app/ingest.py
+
+    # 启动API服务
+    uvicorn app.main:app --reload
+
+    # 通过POST请求访问查询接口
+    POST http://localhost:8000/rag_query/
+    Content-Type: application/json
+    Body:
+    {
+      "query": "什么是Kafka？"
+    }

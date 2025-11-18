@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+langchain
+langchain-openai
+chromadb
+tiktoken
+pydantic
+kafka-python
