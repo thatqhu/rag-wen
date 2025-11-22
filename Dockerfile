@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 安装系统依赖（pdf解析需要）
-RUN apt-get update && apt-get install -y poppler-utils curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y poppler-utils curl git && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖
 COPY requirements.txt .
