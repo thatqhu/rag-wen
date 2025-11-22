@@ -1,65 +1,120 @@
-    用户请求 → FastAPI接口
-        ↓
-    Kafka消息队列（异步消息缓冲）
-        ↓
-    消费者服务：
-    - 文档处理与向量化（调用嵌入模型）
-    - 向量数据写入Chroma数据库
-        ↓
-    RAG问答链：
-    - 查询请求触发Chroma检索
-    - 结合LLM生成答案
-        ↓
-    返回结果给用户
+📘 RAG Knowledge Base System
 
-| 组件                | 技术    | 用途             |
-| ----------------- | ----- | -------------- |
-| Kafka             | 消息队列  | 解耦请求和文档索引，异步处理 |
-| FastAPI           | Web框架 | 提供REST API接口   |
-| LangChain         | AI框架  | 拼接向量检索与LLM问答能力 |
-| Chroma            | 向量数据库 | 向量存储与语义检索      |
-| OpenAI Embeddings | 嵌入模型  | 文本向量化          |
-| ChatOpenAI        | LLM服务 | 生成自然语言回答       |
+基于 Docker 的企业级 RAG（检索增强生成）知识库系统。整合了 Kafka 异步处理、LangChain 编排与 Chroma 向量存储。专为开发者设计的“单容器全栈”模式，支持 VS Code 一键 Attach 开发与调试。
+🛠 技术架构
+模块	技术选型	说明
+API 服务	FastAPI	高性能异步 Web 框架，提供 RESTful 接口
+AI 编排	LangChain	负责 RAG 链路构建、Prompt 管理与模型调用
+向量库	ChromaDB	本地嵌入式向量数据库，支持持久化存储
+消息队列	Kafka + Zookeeper	异步解耦文档解析与向量化任务
+文档解析	PyPDF	支持 PDF 格式的文本提取与分块
+容器化	Docker Compose	一键编排所有服务，环境一致性保证
+🚀 快速开始
+1. 环境准备
 
+确保本地已安装：
 
+    Docker & Docker Compose
 
-| 主题        | 技术理解                        | 实践意义                     |
-| --------- | --------------------------- | ------------------------ |
-| Kafka消息队列 | 解耦上传与索引处理，避免接口阻塞，提高系统吞吐     | 更适合大规模文档批量处理、异步任务调度      |
-| 文本切分策略    | 使用合适大小切块保证上下文连贯，避免截断或冗余     | 好的切分提升向量质量，进而提升检索和回答的准确度 |
-| 向量化处理     | 嵌入模型负责抽取语义特征；转换文本数据为向量      | 向量化是实现语义检索和知识匹配的基础       |
-| 向量数据库持久化  | 持久存储和高效索引实现海量文档检索           | 保证检索高效、数据不丢失             |
-| RAG链集成    | LangChain简化检索与生成组合流程，提升开发效率 | 快速搭建RAG应用核心，研发迭代快        |
-| 异步任务      | Kafka等消息队列提供行业级异步可靠数据传递方案   | 避免接口阻塞，提升系统稳定性，适配大规模业务场景 |
+    VS Code (推荐安装 Dev Containers 插件)
 
-| 文件           | 作用               | 说明                       |
-| ------------ | ---------------- | ------------------------ |
-| utils.py     | Kafka连接工具        | 封装生产者、消费者连接参数            |
-| producer.py  | 模拟文档上传Kafka      | 发送文档消息到Kafka，触发消费端索引     |
-| ingest.py    | Kafka消费者 + 文档向量化 | 消费文档消息，切分文本，生成向量写入Chroma |
-| rag_chain.py | RAG链构建           | 载入向量数据库，构建问答链，使用LLM生成    |
-| main.py      | 提供FastAPI查询接口    | 接收用户问题，调用RAG链返回答案和来源     |
+2. 配置文件
 
-    启动Kafka服务，并创建主题doc_ingest_topic
-    启动消费者服务运行kafka_consumer.py（示例代码中的消费者）
-    使用kafka_producer.py发送文档消息
-    运行FastAPI服务，调用 /rag_query/接口进行问答查询
+在项目根目录新建 .env 文件：
 
-    # 安装依赖
-    pip install -r requirements.txt
+bash
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+CHROMA_DB_DIR=/chroma_data
 
-    # 启动Kafka服务 (需本机部署或Docker)
+3. 启动服务
 
-    # 启动Kafka消费者，索引传入文档
-    python app/ingest.py
+bash
+docker-compose up -d
 
-    # 启动API服务
-    uvicorn app.main:app --reload
+    首次运行会自动构建镜像并启动 Kafka、Zookeeper 及开发容器。
 
-    # 通过POST请求访问查询接口
-    POST http://localhost:8000/rag_query/
-    Content-Type: application/json
-    Body:
-    {
-      "query": "什么是Kafka？"
-    }
+4. 进入开发环境
+
+    打开 VS Code。
+
+    点击左侧 Docker 图标。
+
+    右键 rag-dev 容器 -> "Attach Visual Studio Code"。
+
+    在新窗口打开终端（Terminal），即位于容器内 /app 目录。
+
+5. 运行应用
+
+在容器终端内执行：
+
+bash
+python src/main.py
+
+见如下日志即启动成功：
+
+text
+🚀 Starting RAG All-in-One Service...
+👷 Worker connected to Kafka...
+✅ Uvicorn running on http://0.0.0.0:8000
+
+📂 目录结构
+
+text
+rag-integrated/
+├── docker-compose.yml       # 容器编排
+├── Dockerfile               # 开发环境镜像
+├── requirements.txt         # 依赖列表
+├── .env                     # 环境变量
+└── src/
+    ├── main.py              # 启动入口 (多进程管理)
+    ├── api.py               # API 接口层
+    ├── ingestor.py          # 文档摄入服务 (Producer)
+    ├── worker.py            # 向量化服务 (Consumer)
+    └── core/                # 核心组件
+        ├── config.py        # 配置中心
+        ├── rag.py           # RAG 业务逻辑
+        └── db.py            # 数据库连接
+
+🧪 接口测试
+1. 上传文档
+
+将 PDF 文档上传进行解析与向量化。
+
+请求:
+
+bash
+curl -X POST "http://localhost:8000/upload" \
+     -F "file=@/path/to/doc.pdf"
+
+2. 智能问答
+
+基于已上传文档进行 RAG 检索问答。
+
+请求:
+
+bash
+curl -X POST "http://localhost:8000/chat" \
+     -H "Content-Type: application/json" \
+     -d '{"question": "文档的主要结论是什么？"}'
+
+响应:
+
+json
+{
+  "answer": "根据文档内容，主要结论是..."
+}
+
+🐛 调试指南
+
+    API 调试: 在容器内运行 uvicorn src.api:app --reload，修改代码即生效。
+
+    Worker 调试: 停止主进程，单独运行 python src/worker.py，可配合断点调试。
+
+    日志查看: 所有服务日志均输出至标准输出，直接在 VS Code 终端查看。
+
+📝 扩展建议
+
+    更换模型: 修改 src/core/config.py 中的 LLM_MODEL_NAME 即可切换模型。
+
+    生产部署: 建议将 main.py 拆分为独立的 Docker 服务进行分布式部署。
