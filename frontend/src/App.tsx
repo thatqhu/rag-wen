@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 
-// 类型定义
 type Message = {
   role: 'user' | 'assistant';
   content: string;
@@ -9,11 +8,10 @@ type Message = {
 function App() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
-  const [status, setStatus] = useState('') // 显示后台状态 (搜索中/反思中)
+  const [status, setStatus] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
-  // 自动滚动
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, status])
@@ -23,14 +21,12 @@ function App() {
     const userMsg = input
     setInput('')
 
-    // 1. UI 乐观更新：先显示用户消息
     setMessages(prev => [...prev, { role: 'user', content: userMsg }])
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]) // 占位符
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
     setIsLoading(true)
-    setStatus('正在初始化 Agent...')
+    setStatus('Initializing Agent...')
 
     try {
-      // 2. 发起请求 (注意 URL 端口是 8000)
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +45,7 @@ function App() {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n\n') // SSE 标准分隔符
+        const lines = buffer.split('\n\n')
         buffer = lines.pop() || ''
 
         for (const line of lines) {
@@ -60,18 +56,21 @@ function App() {
             try {
               const data = JSON.parse(jsonStr)
 
-              if (data.type === 'token') {
-                // 收到文本 Token -> 更新最后一条消息
-                setMessages(prev => {
-                  const newMsgs = [...prev]
-                  const lastMsg = newMsgs[newMsgs.length - 1]
-                  lastMsg.content += data.content
-                  return newMsgs
-                })
-              } else if (data.type === 'status') {
-                // 收到状态更新 -> 更新状态栏
+              if (data.type === 'status') {
                 setStatus(data.content)
-              }
+              }  else if (data.type === 'result') {
+                setMessages(prev => {
+                const newMsgs = [...prev]
+                const lastMsg = newMsgs[newMsgs.length - 1]
+
+                if (lastMsg.role === 'assistant') {
+                    lastMsg.content = data.content
+                } else {
+                    newMsgs.push({ role: 'assistant', content: data.content })
+                }
+                return newMsgs
+              })
+            }
             } catch (e) {
               console.error('Parse error', e)
             }
@@ -80,7 +79,7 @@ function App() {
       }
     } catch (err) {
       console.error(err)
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ 连接服务器失败' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to connect to server' }])
     } finally {
       setIsLoading(false)
       setStatus('')
@@ -90,8 +89,7 @@ function App() {
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'system-ui' }}>
       <header style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-        <h2 style={{ margin: 0 }}>LangGraph Explorer</h2>
-        <small style={{ color: '#666' }}>Elixir Mindset Edition 💧</small>
+        <h2 style={{ margin: 0 }}>Chatbox with LangGraph</h2>
       </header>
 
       {/* 消息列表 */}
@@ -134,7 +132,7 @@ function App() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !isLoading && sendMessage()}
-          placeholder="输入问题 (例如: 搜索关于 iPhone 16 的新闻)..."
+          placeholder="Input question (Like: get the weather for New York city)..."
           style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #ccc' }}
           disabled={isLoading}
         />
