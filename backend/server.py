@@ -34,9 +34,12 @@ async def sse_generator(user_message: str):
         # 我们只关心 'agent' 节点产生的文本，不关心 'reflect' 产生的批评意见
         if kind == "on_chat_model_stream" and "agent" in event.get("tags", []):
              # 注意：如果 Agent 正在生成 Tool Call 参数，chunk.content 是空的，这里会自动忽略
-            content = event["data"]["chunk"].content
-            if content:
-                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+            chunk = event["data"].get("chunk")
+            if chunk and hasattr(chunk, "content"):
+                content = chunk.content
+                if content:
+                    payload = json.dumps({"type": "token", "content": content})
+                    yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
         # 2. 捕获状态变化 (用于前端 UI 展示)
         elif kind == "on_chain_start":

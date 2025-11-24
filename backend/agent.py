@@ -3,10 +3,11 @@ from typing import List, TypedDict, Literal, Annotated
 import operator
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
+from pydantic import SecretStr
 
 # --- 1. 定义状态 ---
 # Annotated[List, operator.add] 是 LangGraph 的一个特性 (Reducer)
@@ -20,10 +21,17 @@ class ChatState(TypedDict):
 # 确保环境变量 TAVILY_API_KEY 已设置
 tool = TavilySearchResults(max_results=3)
 tools = [tool]
-
+api_key_val = os.environ.get("DASHSCOPE_API_KEY")
+if not api_key_val:
+    raise ValueError("DASHSCOPE_API_KEY is not set")
 # bind_tools: 类似于 Elixir 的 Function Currying (柯里化)
 # 我们告诉 LLM："你可以使用这些函数"
-llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
+llm = ChatOpenAI(
+    model="qwen-plus",
+    api_key=SecretStr(api_key_val),
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    temperature=0.5
+)
 llm_with_tools = llm.bind_tools(tools)
 
 # --- 3. 节点定义 ---
@@ -83,15 +91,14 @@ def reflection_node(state: ChatState):
 # --- 4. 边的逻辑 (Routing) ---
 
 def route_agent(state: ChatState):
+    last_message = state["messages"][-1]
     """
     决定 Agent 之后的去向：
     1. 有 Tool Calls -> 去 ToolNode
     2. 纯文本 -> 去 Reflection
     """
-    last_message = state["messages"][-1]
-
     # 检查最后一条消息是否包含工具调用请求
-    if last_message.tool_calls:
+    if  isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
     return "reflect"
 

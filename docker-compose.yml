@@ -1,25 +1,31 @@
 services:
-  backend:
-    build: ./backend
-    # 让容器保持运行，方便 Dev Container 连接
-    command: sleep infinity
+  # 我们现在的服务是一个"全栈开发环境"
+  dev-env:
+    # 指向我们刚才创建的那个包含 Python+Node 的 Dockerfile.dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+
+    # 容器名称，方便你在终端里 docker exec
+    container_name: rag-wen
+
+    # 关键：挂载整个根目录到 /workspace
+    # 这样你在 backend/ 和 frontend/ 写的代码都会实时同步进去
     volumes:
-      - ./backend:/workspace/backend
-    environment:
-      # 请在本地创建 .env 文件或直接在这里填入 Key
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - .:/workspace
+      # 避免本地 node_modules 污染容器 (可选，但推荐)
+      # - /workspace/frontend/node_modules
+
+    # 同时暴露前后端端口
     ports:
       - "8000:8000"
-
-  frontend:
-    build: ./frontend
-    # 前端开启 host 模式以便 Docker 外部访问
-    command: npm run dev -- --host
-    volumes:
-      - ./frontend:/workspace/frontend
-      - /workspace/frontend/node_modules
-    ports:
       - "5173:5173"
+
+    # 注入环境变量
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - DASHSCOPE_API_KEY=sk-c4b301ef2a0f40ab9197981f9366c544
+      - TAVILY_API_KEY=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
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # 关键：手动模式。容器启动后什么都不干，只睡觉，等你进终端操作。
+    command: sleep infinity

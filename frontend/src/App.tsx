@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
+// 类型定义
 type Message = {
   role: 'user' | 'assistant';
   content: string;
@@ -8,66 +9,78 @@ type Message = {
 function App() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState('') // 显示后台状态 (搜索中/反思中)
   const [isLoading, setIsLoading] = useState(false)
-  const msgsEndRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
 
+  // 自动滚动
   useEffect(() => {
-    msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, status])
 
   const sendMessage = async () => {
     if (!input.trim()) return
-    const userText = input
+    const userMsg = input
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: userText }])
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]) // 占位
+
+    // 1. UI 乐观更新：先显示用户消息
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }])
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]) // 占位符
     setIsLoading(true)
-    setStatus('初始化...')
+    setStatus('正在初始化 Agent...')
 
     try {
+      // 2. 发起请求 (注意 URL 端口是 8000)
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({ message: userMsg })
       })
 
-      const reader = response.body?.getReader()
+      if (!response.body) throw new Error('No response body')
+
+      // 3. 处理 SSE 流
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
 
       while (true) {
-        const { done, value } = await reader!.read()
+        const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        buffer += chunk
-        const lines = buffer.split('\n\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n') // SSE 标准分隔符
         buffer = lines.pop() || ''
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6)
-            if (dataStr === '[DONE]') break
+            const jsonStr = line.slice(6)
+            if (jsonStr === '[DONE]') break
 
-            const data = JSON.parse(dataStr)
+            try {
+              const data = JSON.parse(jsonStr)
 
-            if (data.type === 'token') {
-              // 类似 Elixir 的 reduce 更新状态
-              setMessages(prev => {
-                const newMsgs = [...prev]
-                const last = newMsgs[newMsgs.length - 1]
-                last.content += data.content
-                return newMsgs
-              })
-            } else if (data.type === 'status') {
-              setStatus(data.content)
+              if (data.type === 'token') {
+                // 收到文本 Token -> 更新最后一条消息
+                setMessages(prev => {
+                  const newMsgs = [...prev]
+                  const lastMsg = newMsgs[newMsgs.length - 1]
+                  lastMsg.content += data.content
+                  return newMsgs
+                })
+              } else if (data.type === 'status') {
+                // 收到状态更新 -> 更新状态栏
+                setStatus(data.content)
+              }
+            } catch (e) {
+              console.error('Parse error', e)
             }
           }
         }
       }
-    } catch (e) {
-      console.error(e)
+    } catch (err) {
+      console.error(err)
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ 连接服务器失败' }])
     } finally {
       setIsLoading(false)
       setStatus('')
@@ -75,39 +88,70 @@ function App() {
   }
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>Reflective Chatbot</h1>
+    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '20px', fontFamily: 'system-ui' }}>
+      <header style={{ marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+        <h2 style={{ margin: 0 }}>LangGraph Explorer</h2>
+        <small style={{ color: '#666' }}>Elixir Mindset Edition 💧</small>
+      </header>
 
-      <div style={{ height: '400px', overflowY: 'auto', border: '1px solid #ccc', padding: '10px', borderRadius: '8px' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{
-            textAlign: m.role === 'user' ? 'right' : 'left',
-            margin: '10px 0'
+      {/* 消息列表 */}
+      <div style={{
+        height: '60vh',
+        overflowY: 'auto',
+        background: '#f9f9f9',
+        borderRadius: '10px',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        {messages.map((msg, idx) => (
+          <div key={idx} style={{
+            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            maxWidth: '80%',
+            padding: '10px 15px',
+            borderRadius: '15px',
+            background: msg.role === 'user' ? '#007AFF' : '#E5E5EA',
+            color: msg.role === 'user' ? 'white' : 'black',
+            lineHeight: '1.5'
           }}>
-            <span style={{
-              background: m.role === 'user' ? '#007bff' : '#f1f1f1',
-              color: m.role === 'user' ? 'white' : 'black',
-              padding: '8px 12px',
-              borderRadius: '12px',
-              display: 'inline-block'
-            }}>
-              {m.content}
-            </span>
+            {msg.content}
           </div>
         ))}
-        {isLoading && <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>🤖 {status}</div>}
-        <div ref={msgsEndRef} />
+
+        {/* 状态指示器 */}
+        {isLoading && status && (
+          <div style={{ alignSelf: 'flex-start', color: '#888', fontSize: '0.9em', fontStyle: 'italic' }}>
+            {status}
+          </div>
+        )}
+        <div ref={endRef} />
       </div>
 
-      <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+      {/* 输入框 */}
+      <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && sendMessage()}
-          style={{ flex: 1, padding: '10px' }}
-          placeholder="试着说一句简短的话 (触发反思机制)..."
+          onKeyDown={e => e.key === 'Enter' && !isLoading && sendMessage()}
+          placeholder="输入问题 (例如: 搜索关于 iPhone 16 的新闻)..."
+          style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #ccc' }}
+          disabled={isLoading}
         />
-        <button onClick={sendMessage} disabled={isLoading} style={{ padding: '10px 20px' }}>发送</button>
+        <button
+          onClick={sendMessage}
+          disabled={isLoading}
+          style={{
+            padding: '0 20px',
+            borderRadius: '8px',
+            border: 'none',
+            background: isLoading ? '#ccc' : '#007AFF',
+            color: 'white',
+            cursor: isLoading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          发送
+        </button>
       </div>
     </div>
   )
