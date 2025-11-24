@@ -1,0 +1,20 @@
+{
+  "name": "LangGraph Fullstack",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+
+  "postCreateCommand": "pip install -r backend/requirements.txt",
+  "forwardPorts": [8000, 5173],
+  "remoteUser": "root"
+}

@@ -1,43 +1,25 @@
-version: "3.9"
-
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.9.4  # 更新至 7.9.4
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.9.4      # 更新至 7.9.4
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # 注意：新版本建议明确指定协议映射
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    ports:
-      - "9092:9092"
-
-  # --- 全栈开发容器 ---
-  rag-app:
-    build: .
-    container_name: rag-wen
-    # 关键：让容器不退出，方便你 Attach 进去操作，或者直接运行 main.py
-    command: ["sleep", "infinity"]
+  backend:
+    build: ./backend
+    # 让容器保持运行，方便 Dev Container 连接
+    command: sleep infinity
     volumes:
-      - .:/app                 # 挂载代码
-      - ./chroma_data:/chroma_data  # 持久化向量库
+      - ./backend:/workspace/backend
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - CHROMA_DB_DIR=/chroma_data
-      # 请在本地 .env 文件中配置 Key，或者直接写在这里
+      # 请在本地创建 .env 文件或直接在这里填入 Key
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    depends_on:
-      - kafka
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
     ports:
-      - "8000:8000"            # API 端口
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    # 前端开启 host 模式以便 Docker 外部访问
+    command: npm run dev -- --host
+    volumes:
+      - ./frontend:/workspace/frontend
+      - /workspace/frontend/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000

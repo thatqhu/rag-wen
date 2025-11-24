@@ -1,11 +1,6 @@
 fastapi
-uvicorn[standard]
-python-multipart
-langchain
+uvicorn
+langgraph
 langchain-openai
 langchain-community
-langchain-chroma
-chromadb
-kafka-python
-pypdf
-python-dotenv
+pydantic
