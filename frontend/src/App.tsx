@@ -35,7 +35,6 @@ function App() {
 
       if (!response.body) throw new Error('No response body')
 
-      // 3. 处理 SSE 流
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
