@@ -1,31 +1,21 @@
 services:
-  # 我们现在的服务是一个"全栈开发环境"
   dev-env:
-    # 指向我们刚才创建的那个包含 Python+Node 的 Dockerfile.dev
     build:
       context: .
       dockerfile: Dockerfile.dev
 
-    # 容器名称，方便你在终端里 docker exec
     container_name: rag-wen
 
-    # 关键：挂载整个根目录到 /workspace
-    # 这样你在 backend/ 和 frontend/ 写的代码都会实时同步进去
     volumes:
       - .:/workspace
-      # 避免本地 node_modules 污染容器 (可选，但推荐)
-      # - /workspace/frontend/node_modules
 
-    # 同时暴露前后端端口
     ports:
       - "8000:8000"
       - "5173:5173"
 
-    # 注入环境变量
     environment:
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - PYTHONDONTWRITEBYTECODE=1
 
-    # 关键：手动模式。容器启动后什么都不干，只睡觉，等你进终端操作。
     command: sleep infinity

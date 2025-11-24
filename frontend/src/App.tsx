@@ -92,7 +92,6 @@ function App() {
         <h2 style={{ margin: 0 }}>Chatbox with LangGraph</h2>
       </header>
 
-      {/* 消息列表 */}
       <div style={{
         height: '60vh',
         overflowY: 'auto',
@@ -117,7 +116,6 @@ function App() {
           </div>
         ))}
 
-        {/* 状态指示器 */}
         {isLoading && status && (
           <div style={{ alignSelf: 'flex-start', color: '#888', fontSize: '0.9em', fontStyle: 'italic' }}>
             {status}
@@ -126,7 +124,6 @@ function App() {
         <div ref={endRef} />
       </div>
 
-      {/* 输入框 */}
       <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
         <input
           value={input}
@@ -148,7 +145,7 @@ function App() {
             cursor: isLoading ? 'not-allowed' : 'pointer'
           }}
         >
-          发送
+          SEND
         </button>
       </div>
     </div>
