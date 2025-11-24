@@ -47,6 +47,7 @@ def agent_node(state: ChatState):
         MessagesPlaceholder(variable_name="messages")
     ])
 
+    # think about to use more power llm here
     chain = prompt | llm_with_tools
     response = chain.invoke({"messages": messages})
 
@@ -57,6 +58,7 @@ def reflection_node(state: ChatState):
     messages = state["messages"]
     last_message = messages[-1]
 
+    # This self-correction prompt is designed to strictly follow the review criteria.
     reflection_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a strict editor-in-chief. Your task is to review the Agent's response.
 
