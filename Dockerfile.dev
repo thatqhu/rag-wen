@@ -1,29 +1,18 @@
-# 1. 使用 Python 作为基础镜像
 FROM python:3.11-slim
 
-# 2. 安装 Node.js 和 npm (为了跑前端)
-# 使用 curl 从 NodeSource 安装最新的 LTS 版本
 RUN apt-get update && apt-get install -y curl gnupg git \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-# 3. 设置工作目录
 WORKDIR /workspace
 
-# 4. (可选) 预安装依赖以加速启动
-# 这里我们不 COPY 整个文件夹，只 COPY 依赖描述文件
 COPY backend/requirements.txt ./backend/
 COPY frontend/package.json ./frontend/
 
-# 5. 安装 Python 依赖
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
     && pip install --no-cache-dir -r backend/requirements.txt
 
-# 6. 安装 Node 依赖
-# 注意：这里只是为了缓存 node_modules。
-# 实际开发挂载 Volume 时，可能会覆盖这里的 node_modules，需要重新 npm install 一次
 RUN cd frontend && npm install
 
-# 7. 关键：开发容器不运行服务，只挂起
 CMD ["sleep", "infinity"]

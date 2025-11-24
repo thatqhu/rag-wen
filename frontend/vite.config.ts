@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: "0.0.0.0",  // 监听 0.0.0.0，这对 Docker 至关重要
+    host: "0.0.0.0",
     port: 5173
   }
 })
