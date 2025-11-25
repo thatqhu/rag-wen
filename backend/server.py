@@ -1,90 +1,88 @@
-import json
+import json, os
 import uuid
-import uvicorn
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage, AIMessage
-from agent import graph
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from worker_kafka import consume
 
-app = FastAPI()
+KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+TOPIC_REQUEST = 'rag_requests'
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+producer = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global producer
+    producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+    await producer.start()
+    print("Server Producer started.")
+    yield
+    await producer.stop()
+    print("Server Producer stopped.")
+
+app = FastAPI(lifespan=lifespan)
 
 class ChatRequest(BaseModel):
     message: str
+    thread_id: str = None
 
-def format_sse(event_type: str, content: str) -> str:
-    payload = json.dumps({"type": event_type, "content": content})
-    return f"data: {payload}\n\n"
+async def kafka_stream_generator(target_thread_id: str):
+    """
+    这是一个异步生成器，它会创建一个临时的 Kafka Consumer，
+    专门监听指定 thread_id 的消息。
+    """
+    consumer = AIOKafkaConsumer(
+        'rag_responses', # 监听结果主题
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id=f"web-client-{target_thread_id}", # 确保每个请求有独立的 Consumer Group (或者用随机UUID)
+        auto_offset_reset='latest' # 只听最新的
+    )
+    await consumer.start()
 
-async def handle_node_status(event: dict):
-    name = event["name"]
-    status_map = {
-        "tools": "Searching...",
-        "reflect": "Reviewing...",
-        "agent": "Thinking..."
-    }
+    try:
+        async for msg in consumer:
+            data = json.loads(msg.value.decode('utf-8'))
 
-    if name in status_map:
-        return format_sse("status", status_map[name])
-    return None
+            # 关键过滤：只处理当前用户的消息
+            if data.get('thread_id') == target_thread_id:
 
-async def handle_final_result(event: dict, graph_config: dict):
-    name = event["name"]
+                # 格式化为 SSE (Server-Sent Events) 标准格式
+                # 格式: "data: {JSON payload}\n\n"
+                yield f"data: {json.dumps(data)}\n\n"
 
-    if name != "reflect":
-        return None
-
-    output = event["data"].get("output")
-    if not output or "messages" not in output:
-        return None
-
-    last_msg = output["messages"][-1]
-    if "APPROVE" not in last_msg.content:
-        return None
-
-    # the tricky thing is we only return the final approved message, but not the ai result message
-    # let's go back to state get the real result
-    final_state = graph.get_state(graph_config) # type: ignore
-    for msg in reversed(final_state.values["messages"]):
-        if isinstance(msg, AIMessage) and msg.content and "APPROVE" not in msg.content:
-             return format_sse("result", msg.content) # type: ignore
-
-    return None
-
-async def sse_generator(user_message: str):
-    thread_id = str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
-
-    inputs = {
-        "messages": [HumanMessage(content=user_message)],
-        "revision_count": 0
-    }
-
-    async for event in graph.astream_events(inputs, config=config, version="v1"): # type: ignore
-        kind = event["event"]
-
-        result = None
-
-        if kind == "on_chain_start":
-            result = await handle_node_status(event) # type: ignore
-
-        elif kind == "on_chain_end":
-            result = await handle_final_result(event, config) # type: ignore
-
-        if result:
-            yield result
+                # 结束条件：如果收到完成信号或错误
+                if data.get('type') in ['result', 'error']:
+                    break
+    finally:
+        await consumer.stop()
 
 @app.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    return StreamingResponse(sse_generator(req.message), media_type="text/event-stream")
+    thread_id = req.thread_id or str(uuid.uuid4())
+
+    payload = {
+        "thread_id": thread_id,
+        "message": req.message,
+        "timestamp": asyncio.get_event_loop().time()
+    }
+
+    try:
+        await producer.send_and_wait(
+            TOPIC_REQUEST,
+            json.dumps(payload).encode('utf-8')
+        )
+        # 3. 立即返回流式响应 (Consumer)
+        # 这里的 generator 会在后台持续运行，直到任务结束
+        return StreamingResponse(
+            kafka_stream_generator(thread_id),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
